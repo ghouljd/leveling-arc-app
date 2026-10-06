@@ -1,3 +1,6 @@
+import {before,after,mock} from 'node:test';
+before(()=>mock.timers.enable({apis:['Date'],now:new Date('2026-10-06T20:00:00-05:00')}));
+after(()=>mock.timers.reset());
 import 'fake-indexeddb/auto';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -48,7 +51,7 @@ test('una compra conserva su identificador al reabrir y bloquea otra solicitud p
  await queuePurchase('food','2026-10-05T19:00','Cena');
  const purchase=(await db.operations.toArray())[0];db.close();await db.open();
  assert.equal((await db.operations.toArray())[0].id,purchase.id);
- await assert.rejects(queuePurchase('sleep','2026-10-05T22:30','Noche','2026-10-06'),/pendiente/);
+ await assert.rejects(queuePurchase('sleep','2026-10-05T22:30','Noche','2026-10-06'),/awaiting confirmation/);
  assert.equal(await db.operations.count(),1);
  await db.operations.update(purchase.id,{status:'accepted'});
  await queuePurchase('sleep','2026-10-05T22:30','Noche','2026-10-06');
@@ -60,7 +63,7 @@ test('corrección ampliada exige nueva comparación tras edición concurrente y 
  await addEntry({day:'2026-10-05',mission:'alcohol',quantity:3,unit:'trago',note:'',occurredAt:'2026-10-05T12:00'});
  const original=(await db.entries.toArray())[0];
  await correctEntry(original.id,{...original,quantity:1,note:'Nota corregida',unit:'copa',occurredAt:'2026-10-05T13:00'},'Error de registro',original.revision);
- await assert.rejects(correctEntry(original.id,2,'Comparación antigua',original.revision),/cambió/);
+ await assert.rejects(correctEntry(original.id,2,'Comparación antigua',original.revision),/changed/);
  db.close();await db.open();assert.equal((await db.entries.get(original.id))?.unit,'copa');
  const correction=(await db.operations.toArray()).find(o=>o.kind==='correct-entry')!;
  assert.deepEqual((correction.payload as {original:unknown}).original,original);

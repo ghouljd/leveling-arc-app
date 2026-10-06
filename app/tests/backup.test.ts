@@ -1,3 +1,6 @@
+import {before,after,mock} from 'node:test';
+before(()=>mock.timers.enable({apis:['Date'],now:new Date('2026-10-06T20:00:00-05:00')}));
+after(()=>mock.timers.reset());
 import 'fake-indexeddb/auto';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
@@ -12,7 +15,7 @@ test('respaldo: recuperación repetida conserva UUID, cola, saldo por verificar 
  await db.operations.update(op.id,{status:'accepted'});
  const snapshot={schemaVersion:2,revision:1,entries:[entry],decisions:[],days:[],evaluations:[{id:'2026-10-05:pushups',day:'2026-10-05',mission:'pushups',result:'fulfilled' as const,xp:8,mc:2}],movements:[{id:'xp-1',resource:'xp' as const,amount:8,cause:'reward',accreditedAt:'2026-10-05T17:00:00Z'},{id:'mc-1',resource:'mc' as const,amount:2,cause:'reward',accreditedAt:'2026-10-05T17:00:00Z'}],balances:{xp:8,mc:2},level:1};
  await mergeSnapshot(db,snapshot);const copy=await createBackup();
- assert.equal('session' in copy,false);assert.equal(copy.owner,player);assert.match(historyCSV(copy),/Flexiones/);
+ assert.equal('session' in copy,false);assert.equal(copy.owner,player);assert.match(historyCSV(copy),/Push-ups/);
  await db.delete();await db.open();
  const preview=await previewBackup(copy);assert.equal(preview.newRecords,2);assert.equal(preview.conflicts,0);
  await restoreBackup(copy);assert.equal((await db.operations.get(op.id))!.status,'pending');assert.equal((await db.meta.get('account'))!.value.importedUnverified,true);
@@ -29,13 +32,13 @@ test('respaldo: diferencias no sobrescriben y registros sin operación quedan en
 });
 test('respaldo: rechaza otra identidad, valores corruptos, duplicados y contabilidad incompleta',async()=>{
  await reset();await addEntry({day:'2026-10-05',mission:'pushups',quantity:10,unit:'repetición',note:'',occurredAt:'2026-10-05T12:00'});const copy=await createBackup();
- assert.throws(()=>validateBackup({...copy,owner:'someone-else'},player),/otra cuenta/);
+ assert.throws(()=>validateBackup({...copy,owner:'someone-else'},player),/another account/);
  assert.throws(()=>validateBackup({...copy,exportedAt:'bad'},player),/incompatible/);
- assert.throws(()=>validateBackup({...copy,entries:[copy.entries[0],copy.entries[0]]},player),/repetidos/);
- assert.throws(()=>validateBackup({...copy,entries:[{...copy.entries[0],quantity:-1}]},player),/válidos/);
- assert.throws(()=>validateBackup({...copy,operations:[{...copy.operations[0],entityKey:'entry:wrong'}]},player),/válidos/);
- assert.throws(()=>validateBackup({...copy,account:{schemaVersion:2,revision:1,entries:[],decisions:[],balances:{xp:8,mc:2},level:1}},player),/saldo/);
- assert.throws(()=>validateBackup({...copy,movements:[{id:'reverse',resource:'xp',amount:-8,cause:'reversal',accreditedAt:copy.exportedAt,reversesId:'missing'}]},player),/reversión/);await db.delete();
+ assert.throws(()=>validateBackup({...copy,entries:[copy.entries[0],copy.entries[0]]},player),/duplicate IDs/);
+ assert.throws(()=>validateBackup({...copy,entries:[{...copy.entries[0],quantity:-1}]},player),/invalid/);
+ assert.throws(()=>validateBackup({...copy,operations:[{...copy.operations[0],entityKey:'entry:wrong'}]},player),/invalid/);
+ assert.throws(()=>validateBackup({...copy,account:{schemaVersion:2,revision:1,entries:[],decisions:[],balances:{xp:8,mc:2},level:1}},player),/balance/);
+ assert.throws(()=>validateBackup({...copy,movements:[{id:'reverse',resource:'xp',amount:-8,cause:'reversal',accreditedAt:copy.exportedAt,reversesId:'missing'}]},player),/reversal/);await db.delete();
 });
 test('actualización IndexedDB v3→v4 conserva registros y cola existentes',async()=>{
  selectPlayerStorage('backup-upgrade');await db.delete();db.close();

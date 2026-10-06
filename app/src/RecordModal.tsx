@@ -1,0 +1,6 @@
+import React from 'react';
+export function RecordModal({title,busy,onClose,children,kicker='MISSION LOG'}:{title:string;busy:boolean;onClose:()=>void;children:React.ReactNode;kicker?:string}){
+ const ref=React.useRef<HTMLDialogElement>(null),heading=React.useId();
+ React.useEffect(()=>{const dialog=ref.current!;dialog.showModal();const previous=document.body.style.overflow;document.body.style.overflow='hidden';return()=>{dialog.close();document.body.style.overflow=previous;};},[]);
+ return <dialog ref={ref} className="record-modal" aria-labelledby={heading} onCancel={e=>{e.preventDefault();if(!busy)onClose();}} onClick={e=>{if(e.target!==e.currentTarget||busy)return;const rect=e.currentTarget.getBoundingClientRect();if(e.clientX<rect.left||e.clientX>rect.right||e.clientY<rect.top||e.clientY>rect.bottom)onClose();}}><div className="record-modal-scroll"><div className="record-modal-heading"><div><span className="menu-kicker">{kicker}</span><h2 id={heading}>{title}</h2></div><button className="icon-button" disabled={busy} aria-label="Close dialog" onClick={onClose}><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>{children}</div></dialog>;
+}

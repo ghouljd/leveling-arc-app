@@ -33,7 +33,7 @@ jobs:
         env:
           VITE_SUPABASE_URL: https://backend.example.invalid
           VITE_SUPABASE_PUBLISHABLE_KEY: test-only-placeholder
-          APP_RULES_CONTENT: "# Reglas\n\nContenido ficticio para verificar el build."
+          APP_RULES_CONTENT: "# Rules\n\nSynthetic content for build verification."
   release:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     needs: verify

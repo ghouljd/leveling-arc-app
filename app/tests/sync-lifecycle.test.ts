@@ -1,3 +1,6 @@
+import {before,after,mock} from 'node:test';
+before(()=>mock.timers.enable({apis:['Date'],now:new Date('2026-10-06T20:00:00-05:00')}));
+after(()=>mock.timers.reset());
 import 'fake-indexeddb/auto';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
@@ -35,23 +38,23 @@ test('ciclo integrado: offline, reapertura, sesión caducada, respuesta perdida 
  await addEntry({day,mission:'pushups',quantity:10,unit:'repeticiones',note:'Fixture aislado',occurredAt:day+'T12:00'});
  await queueClose(day,[{id:day+':pushups',day,mission:'pushups',result:'fulfilled',detail:'Fixture'}]);
  const initial=await store.operations.toArray(),ids=initial.map(o=>o.id);
- await assert.rejects(synchronizeStore(store,remote),/datos siguen guardados/);assert.equal(calls.length,0);
+ await assert.rejects(synchronizeStore(store,remote),/data remains saved/);assert.equal(calls.length,0);
  store.close();await store.open();assert.deepEqual((await store.operations.toArray()).map(o=>o.id),ids);assert.equal((await store.entries.toArray())[0].quantity,10);
- online=true;await assert.rejects(synchronizeStore(store,remote),/inicia sesión/);assert.equal(calls.length,0);assert.equal(await store.operations.where('status').equals('pending').count(),2);
- sessionValid=true;await assert.rejects(synchronizeStore(store,remote),/cola está conservada/);
+ online=true;await assert.rejects(synchronizeStore(store,remote),/sign in/);assert.equal(calls.length,0);assert.equal(await store.operations.where('status').equals('pending').count(),2);
+ sessionValid=true;await assert.rejects(synchronizeStore(store,remote),/queue is preserved/);
  assert.equal(await store.operations.where('status').equals('pending').count(),1);
  const snapshot=async()=>(await pg.query<{r:{balances:{xp:number;mc:number};movements:unknown[]}}>('select public.wa_account_snapshot() r')).rows[0].r;
  assert.deepEqual((await snapshot()).balances,{xp:8,mc:2});assert.equal((await snapshot()).movements.length,2);
  store.close();await store.open();dropPage=2;
- await assert.rejects(synchronizeStore(store,remote),/cursor y los datos locales se conservan/);
+ await assert.rejects(synchronizeStore(store,remote),/cursor and local data are preserved/);
  assert.equal(await store.meta.get('account'),undefined);assert.equal(await store.movements.count(),0);assert.equal((await snapshot()).movements.length,2);
- dropPage=0;assert.equal(await synchronizeStore(store,remote),'Registros y contabilidad sincronizados.');
+ dropPage=0;assert.equal(await synchronizeStore(store,remote),'Records and accounting synced.');
  assert.deepEqual((await store.meta.get('account'))?.value.balances,{xp:8,mc:2});assert.equal(await store.movements.count(),2);assert.equal(await store.operations.where('status').equals('pending').count(),0);
  assert.deepEqual(calls.filter(c=>c.name==='wa_close').map(c=>c.operation),[ids.find(id=>initial.find(o=>o.id===id)?.kind==='close-preview'),ids.find(id=>initial.find(o=>o.id===id)?.kind==='close-preview')]);
  const cursor=(await store.meta.get('account'))!.value.syncCursor;assert.equal(typeof cursor,'number');
  await synchronizeStore(store,remote);assert.equal(await store.movements.count(),2);assert.equal((await store.meta.get('account'))!.value.syncCursor,cursor);
  // Switching account while authenticated for the original identity cannot send its queue.
  selectPlayerStorage('00000000-0000-0000-0000-000000000092');const second=db;await second.delete();await second.open();
- await assert.rejects(synchronizeStore(second,remote),/cuenta cambió/);assert.equal(await second.entries.count(),0);await second.delete();
+ await assert.rejects(synchronizeStore(second,remote),/account changed/);assert.equal(await second.entries.count(),0);await second.delete();
  }finally{await store.delete();await pg.close();}
 });

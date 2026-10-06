@@ -4,7 +4,7 @@ import {localDay} from './storage';
 function inline(text:string){return text.split(/(\*\*.*?\*\*|`.*?`)/g).map((part,i)=>part.startsWith('**')?<strong key={i}>{part.slice(2,-2)}</strong>:part.startsWith('`')?<code key={i}>{part.slice(1,-1)}</code>:part);}
 export function Rules(){
  const blocks=rules.trim().split(/\n\n+/),today=localDay(),number=Math.floor((Date.parse(today)-Date.parse('2026-10-05'))/86400000)+1;
- return <section><h1>Temporada y reglas</h1><p>5 de octubre–31 de diciembre de 2026 · 88 días · Bogotá.</p><p role="status">{number<1?'Temporada por comenzar':number>88?'Temporada terminada':`Día ${number} de 88`}</p>{blocks.map((block,i)=>{
+ return <section><h1>Season and rules</h1><p>October 5–December 31, 2026 · 88 days · Bogotá.</p><p role="status">{number<1?'Season has not started':number>88?'Season ended':`Day ${number} of 88`}</p>{blocks.map((block,i)=>{
  const lines=block.split('\n');
  if(block.startsWith('|')){const rows=lines.filter(line=>!/^\|[\s:|\-]+\|$/.test(line)).map(line=>line.split('|').slice(1,-1).map(cell=>cell.trim()));return <div className="table-scroll" key={i}><table><thead><tr>{rows[0].map((cell,j)=><th key={j} scope="col">{inline(cell)}</th>)}</tr></thead><tbody>{rows.slice(1).map((row,k)=><tr key={k}>{row.map((cell,j)=><td key={j}>{inline(cell)}</td>)}</tr>)}</tbody></table></div>;}
  if(block.startsWith('### '))return <h3 key={i}>{inline(block.slice(4))}</h3>;

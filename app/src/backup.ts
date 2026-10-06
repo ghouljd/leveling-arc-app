@@ -3,7 +3,7 @@ import type {Entry,Decision,Operation,Day,Evaluation,Movement,Snapshot} from './
 import {missions} from './domain/game.ts';
 export interface Backup {format:'winter-arc';version:1;owner:string;exportedAt:string;entries:Entry[];decisions:Decision[];operations:Operation[];days:Day[];evaluations:Evaluation[];movements:Movement[];account:Snapshot|null;restores?:RestoreReview[]}
 export interface RestoreReview {id:string;type:'entries'|'decisions'|'operations';value:Entry|Decision|Operation;status:'pending'|'kept-local'|'corrected';source:string;reason?:string;resolvedAt?:string}
-function owner(){if(!db.name.startsWith('winter-arc-player-'))throw new Error('Inicia sesión para respaldar tu cuenta.');return db.name.slice('winter-arc-player-'.length);}
+function owner(){if(!db.name.startsWith('winter-arc-player-'))throw new Error('Sign in to back up your account.');return db.name.slice('winter-arc-player-'.length);}
 const missionIds=new Set<string>(missions.map(m=>m.id));
 const isObject=(x:unknown):x is Record<string,unknown>=>!!x&&typeof x==='object'&&!Array.isArray(x);
 const dateTime=(x:unknown)=>typeof x==='string'&&Number.isFinite(Date.parse(x));
@@ -18,22 +18,22 @@ function validOperation(x:unknown){if(!isObject(x)||typeof x.id!=='string'||!day
  return true;
 }
 export function validateBackup(value:unknown,player:string):Backup{
- if(!isObject(value)||value.format!=='winter-arc'||value.version!==1||value.owner!==player||!dateTime(value.exportedAt))throw new Error('Copia incompatible o perteneciente a otra cuenta.');
- for(const name of ['entries','decisions','operations','days','evaluations','movements']){const rows=value[name];if(!Array.isArray(rows)||rows.length>100000||rows.some(r=>!isObject(r)||typeof r.id!=='string')||new Set(rows.map(r=>r.id)).size!==rows.length)throw new Error('La copia contiene registros inválidos o identificadores repetidos.');}
+ if(!isObject(value)||value.format!=='winter-arc'||value.version!==1||value.owner!==player||!dateTime(value.exportedAt))throw new Error('The backup is incompatible or belongs to another account.');
+ for(const name of ['entries','decisions','operations','days','evaluations','movements']){const rows=value[name];if(!Array.isArray(rows)||rows.length>100000||rows.some(r=>!isObject(r)||typeof r.id!=='string')||new Set(rows.map(r=>r.id)).size!==rows.length)throw new Error('The backup contains invalid records or duplicate IDs.');}
  const b=value as unknown as Backup;
- if(b.restores!==undefined&&(!Array.isArray(b.restores)||b.restores.length>100000||b.restores.some(r=>!isObject(r)||typeof r.id!=='string'||!['entries','decisions','operations'].includes(r.type)||!['pending','kept-local','corrected'].includes(r.status)||!dateTime(r.source)||(r.type==='operations'?!validOperation(r.value):!validEntity(r.value,r.type==='decisions')))))throw new Error('Revisiones de recuperación inválidas.');
- if(b.entries.some(e=>!validEntity(e))||b.decisions.some(d=>!validEntity(d,true))||b.operations.some(o=>!validOperation(o))||b.days.some(d=>!day(d.day)||!isObject(d.objectives)||typeof d.objectives.status!=='string'||!['D','C','B','A','S'].includes(d.objectives.rank)||['pushups','abs','squats','steps','reading'].some(k=>!integer((d.objectives as unknown as Record<string,unknown>)[k])||Number((d.objectives as unknown as Record<string,unknown>)[k])<0))||b.evaluations.some(e=>!day(e.day)||!missionIds.has(e.mission)||!result(e.result)||!integer(e.xp)||e.xp<0||!integer(e.mc))||b.movements.some(m=>!['xp','mc'].includes(m.resource)||!integer(m.amount)||typeof m.cause!=='string'||!dateTime(m.accreditedAt)))throw new Error('La estructura o los valores de la copia no son válidos.');
- if(b.account!==null&&(!isObject(b.account)||b.account.schemaVersion!==2||!Array.isArray(b.account.entries)||!Array.isArray(b.account.decisions)||!integer(b.account.revision)))throw new Error('Consulta contable incompatible.');
+ if(b.restores!==undefined&&(!Array.isArray(b.restores)||b.restores.length>100000||b.restores.some(r=>!isObject(r)||typeof r.id!=='string'||!['entries','decisions','operations'].includes(r.type)||!['pending','kept-local','corrected'].includes(r.status)||!dateTime(r.source)||(r.type==='operations'?!validOperation(r.value):!validEntity(r.value,r.type==='decisions')))))throw new Error('Invalid restore reviews.');
+ if(b.entries.some(e=>!validEntity(e))||b.decisions.some(d=>!validEntity(d,true))||b.operations.some(o=>!validOperation(o))||b.days.some(d=>!day(d.day)||!isObject(d.objectives)||typeof d.objectives.status!=='string'||!['D','C','B','A','S'].includes(d.objectives.rank)||['pushups','abs','squats','steps','reading'].some(k=>!integer((d.objectives as unknown as Record<string,unknown>)[k])||Number((d.objectives as unknown as Record<string,unknown>)[k])<0))||b.evaluations.some(e=>!day(e.day)||!missionIds.has(e.mission)||!result(e.result)||!integer(e.xp)||e.xp<0||!integer(e.mc))||b.movements.some(m=>!['xp','mc'].includes(m.resource)||!integer(m.amount)||typeof m.cause!=='string'||!dateTime(m.accreditedAt)))throw new Error('The backup structure or values are invalid.');
+ if(b.account!==null&&(!isObject(b.account)||b.account.schemaVersion!==2||!Array.isArray(b.account.entries)||!Array.isArray(b.account.decisions)||!integer(b.account.revision)))throw new Error('Incompatible account snapshot.');
  if(b.account){
   const a=b.account;
-  if(a.entries.some(e=>!validEntity(e))||a.decisions.some(d=>!validEntity(d,true))||!a.balances||!integer(a.balances.xp)||!integer(a.balances.mc)||!integer(a.level)||Number(a.level)<1)throw new Error('Datos de cuenta incompletos.');
-  if(a.tickets!==undefined&&(!Array.isArray(a.tickets)||a.tickets.some(t=>!isObject(t)||typeof t.id!=='string'||!['food','sleep'].includes(t.product)||typeof t.label!=='string'||!dateTime(t.assignedAt)||!dateTime(t.purchasedAt)||!['assigned','used','expired'].includes(t.state)||!day(t.weekStart)||!day(t.expiresOn))))throw new Error('Tickets de la copia inválidos.');
-  if(a.flexibility!==undefined&&(!Array.isArray(a.flexibility)||a.flexibility.some(f=>!isObject(f)||!day(f.weekStart)||!day(f.night))))throw new Error('Noches flexibles de la copia inválidas.');
+  if(a.entries.some(e=>!validEntity(e))||a.decisions.some(d=>!validEntity(d,true))||!a.balances||!integer(a.balances.xp)||!integer(a.balances.mc)||!integer(a.level)||Number(a.level)<1)throw new Error('Incomplete account data.');
+  if(a.tickets!==undefined&&(!Array.isArray(a.tickets)||a.tickets.some(t=>!isObject(t)||typeof t.id!=='string'||!['food','sleep'].includes(t.product)||typeof t.label!=='string'||!dateTime(t.assignedAt)||!dateTime(t.purchasedAt)||!['assigned','used','expired'].includes(t.state)||!day(t.weekStart)||!day(t.expiresOn))))throw new Error('Invalid tickets in the backup.');
+  if(a.flexibility!==undefined&&(!Array.isArray(a.flexibility)||a.flexibility.some(f=>!isObject(f)||!day(f.weekStart)||!day(f.night))))throw new Error('Invalid flexible nights in the backup.');
   // The validated tables are authoritative for the imported cache.
   b.account={...a,entries:b.entries,decisions:b.decisions,days:b.days,evaluations:b.evaluations,movements:b.movements};
  }
- for(const m of b.movements)if(m.reversesId&&!b.movements.some(r=>r.id===m.reversesId&&r.resource===m.resource&&r.amount===-m.amount))throw new Error('La copia está incompleta: falta una reversión.');
- if(b.account?.balances){const xp=b.movements.filter(m=>m.resource==='xp').reduce((n,m)=>n+m.amount,0),mc=b.movements.filter(m=>m.resource==='mc').reduce((n,m)=>n+m.amount,0);if(xp<0||xp!==b.account.balances.xp||mc!==b.account.balances.mc)throw new Error('El saldo no coincide con el libro de movimientos.');}
+ for(const m of b.movements)if(m.reversesId&&!b.movements.some(r=>r.id===m.reversesId&&r.resource===m.resource&&r.amount===-m.amount))throw new Error('The backup is incomplete: a reversal is missing.');
+ if(b.account?.balances){const xp=b.movements.filter(m=>m.resource==='xp').reduce((n,m)=>n+m.amount,0),mc=b.movements.filter(m=>m.resource==='mc').reduce((n,m)=>n+m.amount,0);if(xp<0||xp!==b.account.balances.xp||mc!==b.account.balances.mc)throw new Error('The balance does not match the transaction ledger.');}
  return b;
 }
 export async function createBackup():Promise<Backup>{const player=owner(),store=db;return store.transaction('r',[store.entries,store.decisions,store.operations,store.days,store.evaluations,store.movements,store.meta,store.restores],async()=>({restores:await store.restores.toArray(),format:'winter-arc',version:1,owner:player,exportedAt:new Date().toISOString(),entries:await store.entries.toArray(),decisions:await store.decisions.toArray(),operations:await store.operations.toArray(),days:await store.days.toArray(),evaluations:await store.evaluations.toArray(),movements:await store.movements.toArray(),account:(await store.meta.get('account'))?.value||null}));}
@@ -60,4 +60,4 @@ export async function restoreBackup(value:unknown){const b=validateBackup(value,
   return {newRecords:p.newRecords,identical:p.identical,conflicts:p.conflicts.length};
  });
 }
-export function historyCSV(b:Backup){return '\uFEFFFecha,Misión,Resultado,XP,MC\r\n'+b.evaluations.map(e=>[e.day,missions.find(m=>m.id===e.mission)?.name||e.mission,e.result,e.xp,e.mc].map(v=>'"'+String(v).replaceAll('"','""')+'"').join(',')).join('\r\n');}
+export function historyCSV(b:Backup){return '\uFEFFDate,Mission,Result,XP,MC\r\n'+b.evaluations.map(e=>[e.day,missions.find(m=>m.id===e.mission)?.name||e.mission,e.result,e.xp,e.mc].map(v=>'"'+String(v).replaceAll('"','""')+'"').join(',')).join('\r\n');}

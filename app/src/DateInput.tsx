@@ -14,7 +14,7 @@ export function DateInput({type, value, defaultValue = '', onChange, ...props}: 
  const [date, time] = current.split('T');
  const parts = date.split('-');
  const formattedDate = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : date;
- const display = !current ? 'Seleccionar' : type === 'time' ? current :
+ const display = !current ? 'Select' : type === 'time' ? current :
   type === 'date' ? formattedDate : `${formattedDate} · ${time}`;
  return <span className={`date-control${props.disabled ? ' disabled' : ''}`}>
   <span className="date-control-value" aria-hidden="true">{display}</span>

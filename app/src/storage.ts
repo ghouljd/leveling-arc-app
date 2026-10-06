@@ -7,11 +7,11 @@ export interface Decision { id:string; day:string; mission:string; result:Result
 export interface RemoteResult { status:'accepted'|'conflict'; revision?:number; current?:Entry|Decision|null; currentRevision?:number;category?:string;message?:string }
 export interface Operation { id:string; day:string; kind:string; payload:unknown; createdAt:string; status:'pending'|'accepted'|'conflict'|'discarded'; sequence?:number; entityKey?:string; baseRevision?:number; serverResult?:RemoteResult }
 export interface Objectives {status:string;rank:string;pushups:number;abs:number;squats:number;steps:number;reading:number}
-export interface Day {id:string;day:string;objectives:Objectives;ruleVersion?:string}
+export interface Day {id:string;day:string;objectives:Objectives;ruleVersion?:string;closedAt?:string}
 export interface Evaluation {id:string;day:string;mission:string;result:Result;xp:number;mc:number}
 export interface Movement {id:string;resource:'xp'|'mc';amount:number;cause:string;accreditedAt:string;reversesId?:string;day?:string;mission?:string;operationId?:string;reference?:string;label?:string;product?:string}
 export interface Ticket {id:string;product:"food"|"sleep";weekStart:string;assignedAt:string;wakeDay?:string;label:string;purchasedAt:string;expiresOn:string;state:"assigned"|"used"|"expired"}
-export interface Snapshot { entryCorrectionsEnabled?:boolean;syncCursor?:number; schemaVersion:number; revision:number; entries:Entry[]; decisions:Decision[];days?:Day[];evaluations?:Evaluation[];movements?:Movement[];balances?:{xp:number;mc:number};level?:number;tickets?:Ticket[];flexibility?:{weekStart:string;night:string}[];shopEnabled?:boolean;sleepReference?:'wake-day';historyEnabled?:boolean;airofitEnabled?:boolean;missionCount?:number;importedUnverified?:boolean }
+export interface Snapshot { automaticDayClosureEnabled?:boolean;simpleSleepEnabled?:boolean;automaticAccountingEnabled?:boolean; entryCorrectionsEnabled?:boolean;syncCursor?:number; schemaVersion:number; revision:number; entries:Entry[]; decisions:Decision[];days?:Day[];evaluations?:Evaluation[];movements?:Movement[];balances?:{xp:number;mc:number};level?:number;tickets?:Ticket[];flexibility?:{weekStart:string;night:string}[];shopEnabled?:boolean;sleepReference?:'wake-day';historyEnabled?:boolean;airofitEnabled?:boolean;missionCount?:number;importedUnverified?:boolean }
 export const syncKinds=['add-entry','correct-entry','set-decision'];
 export function commandEntity(op:Operation):Entry|Decision {
  return (op.kind==='correct-entry'?(op.payload as {corrected:Entry}).corrected:op.payload) as Entry|Decision;
@@ -46,17 +46,24 @@ export function selectPlayerStorage(userId:string){
  db.close();db=new WinterDB(name);
 }
 export function localDay(){return new Intl.DateTimeFormat('en-CA',{timeZone:'America/Bogota',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());}
+export function isDayClosed(day:string,today=localDay()){return day<previousDay(today);}
+export function assertDayEditable(day:string){
+ if(isDayClosed(day))throw new Error('Day is closed. Records can no longer be changed.');
+ if(day>localDay())throw new Error('Future days cannot be recorded.');
+}
 async function enqueue(store:WinterDB,op:Omit<Operation,'id'|'status'|'sequence'|'createdAt'>){
  const sequence=(await store.operations.orderBy('sequence').last())?.sequence||0;
  await store.operations.add({...op,id:crypto.randomUUID(),status:'pending',sequence:sequence+1,createdAt:new Date().toISOString()});
 }
 export async function addEntry(entry:Omit<Entry,'id'|'revision'>){
+ assertDayEditable(entry.day);
  const store=db;const value={...entry,id:crypto.randomUUID(),revision:1};
  await store.transaction('rw',store.entries,store.operations,async()=>{
  await store.entries.add(value);await enqueue(store,{day:value.day,kind:'add-entry',payload:value,entityKey:entityKey('add-entry',value),baseRevision:0});
  });
 }
 export async function setDecision(value:Omit<Decision,'id'|'revision'>){
+ assertDayEditable(value.day);
  const store=db;const id=`${value.day}:${value.mission}`;
  await store.transaction('rw',store.decisions,store.operations,async()=>{
  const previous=await store.decisions.get(id);const baseRevision=previous?.revision||0;
@@ -66,18 +73,19 @@ export async function setDecision(value:Omit<Decision,'id'|'revision'>){
 }
 export async function correctEntry(id:string,change:number|Pick<Entry,'quantity'|'unit'|'note'|'occurredAt'|'ticketId'|'mealAt'|'mealLabel'>,reason:string,expectedRevision?:number){
  const patch:Partial<Entry>&{quantity:number}=typeof change==='number'?{quantity:change}:change;
- if(!Number.isSafeInteger(patch.quantity)||patch.quantity<0||!reason.trim()||reason.length>2000)throw new Error('Corrección inválida');
+ if(!Number.isSafeInteger(patch.quantity)||patch.quantity<0||!reason.trim()||reason.length>2000)throw new Error('Invalid correction');
  const store=db;
  await store.transaction('rw',store.entries,store.operations,async()=>{
- const original=await store.entries.get(id);if(!original)throw new Error('Registro inexistente');
- if(expectedRevision!==undefined&&original.revision!==expectedRevision)throw new Error('El registro cambió; revisa otra comparación');
- if(typeof change!=='number'&&(!patch.unit?.trim()||patch.unit.length>100||(patch.note?.length||0)>2000||patch.occurredAt?.slice(0,10)!==original.day))throw new Error('Datos de corrección inválidos');
+ const original=await store.entries.get(id);if(!original)throw new Error('Record not found');assertDayEditable(original.day);
+ if(expectedRevision!==undefined&&original.revision!==expectedRevision)throw new Error('The record changed; review a new comparison');
+ if(typeof change!=='number'&&(!patch.unit?.trim()||patch.unit.length>100||(patch.note?.length||0)>2000||patch.occurredAt?.slice(0,10)!==original.day))throw new Error('Invalid correction data');
  const baseRevision=original.revision||1;
  const corrected={...original,...patch,revision:baseRevision+1};await store.entries.put(corrected);
  await enqueue(store,{day:original.day,kind:'correct-entry',payload:{original,corrected,reason},entityKey:entityKey('correct-entry',corrected),baseRevision});
  });
 }
 export async function queueClose(day:string, results:Decision[],objectives:Objectives={status:'unverified',rank:'D',pushups:10,abs:10,squats:10,steps:1000,reading:10}){
+ assertDayEditable(day);
  const store=db;
  await store.transaction('rw',store.entries,store.decisions,store.operations,async()=>{
  const entries=await store.entries.where('day').equals(day).toArray();
@@ -89,7 +97,7 @@ export async function queueClose(day:string, results:Decision[],objectives:Objec
  });
 }
 export async function mergeSnapshot(store:WinterDB,snapshot:Snapshot,removed:{collection:string;key:string}[]=[]){
- if(snapshot.schemaVersion!==2)throw new Error('Versión remota incompatible');
+ if(snapshot.schemaVersion!==2)throw new Error('Incompatible remote version');
  await store.transaction('rw',[store.entries,store.decisions,store.operations,store.days,store.evaluations,store.movements,store.meta],async()=>{
  const unresolved=(await store.operations.toArray()).filter(o=>o.status==='pending'||o.status==='conflict');
  const protectedKeys=new Set(unresolved.map(o=>o.entityKey));
@@ -118,15 +126,16 @@ export async function mergeSnapshot(store:WinterDB,snapshot:Snapshot,removed:{co
  });
 }
 export async function discardClose(id:string){
- const op=await db.operations.get(id);if(!op||op.kind!=='close-preview')throw new Error('Cierre inexistente');
+ const op=await db.operations.get(id);if(!op||op.kind!=='close-preview')throw new Error('Closure not found');
  await db.operations.update(id,{status:'discarded'});
 }
 export async function resolveConflict(id:string,choice:'remote'|'local',reason:string){
- if(!reason.trim())throw new Error('La resolución requiere motivo');
+ if(!reason.trim())throw new Error('A resolution requires a reason');
  const store=db;
  await store.transaction('rw',store.entries,store.decisions,store.operations,async()=>{
  const conflict=await store.operations.get(id);
- if(!conflict||conflict.status!=='conflict'||!conflict.entityKey)throw new Error('Conflicto inexistente');
+ if(!conflict||conflict.status!=='conflict'||!conflict.entityKey)throw new Error('Conflict not found');
+ if(choice==='local')assertDayEditable(conflict.day);
  const current=conflict.serverResult?.current;
  const local=conflict.kind==='set-decision'?await store.decisions.get(commandEntity(conflict).id):await store.entries.get(commandEntity(conflict).id);
  const related=(await store.operations.where('entityKey').equals(conflict.entityKey).toArray()).filter(o=>o.status==='pending'||o.status==='conflict');
@@ -149,10 +158,10 @@ export function weekStart(day:string){const date=new Date(day+'T12:00:00Z');date
 export function previousDay(day:string){const date=new Date(day+'T12:00:00Z');date.setUTCDate(date.getUTCDate()-1);return date.toISOString().slice(0,10);}
 export function nextDay(day:string){const date=new Date(day+'T12:00:00Z');date.setUTCDate(date.getUTCDate()+1);return date.toISOString().slice(0,10);}
 export async function queuePurchase(product:'food'|'sleep',assignedAt:string,label:string,sleepDay?:string){
- if(product==='sleep'&&!sleepDay)throw new Error('Selecciona el día en que te levantarás.');
+ if(product==='sleep'&&!sleepDay)throw new Error('Select your wake-up day.');
  const store=db;
  await store.transaction('rw',store.operations,async()=>{
-  if((await store.operations.where('status').equals('pending').toArray()).some(o=>o.kind==='purchase'))throw new Error('Hay una compra pendiente de confirmar. Reinténtala antes de comprar otro ticket.');
+  if((await store.operations.where('status').equals('pending').toArray()).some(o=>o.kind==='purchase'))throw new Error('A purchase is awaiting confirmation. Retry it before buying another ticket.');
   await enqueue(store,{day:localDay(),kind:'purchase',payload:{product,assignedAt,label,...(product==='sleep'?{sleepDay}:{})}});
  });
 }
