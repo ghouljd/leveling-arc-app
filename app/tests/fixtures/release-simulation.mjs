@@ -14,7 +14,7 @@ import semanticRelease from 'semantic-release';
     cwd: path, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
   }).trim();
   try {
-    git(['init', '--bare', remote]); git(['init', '-b', 'main', cwd]);
+    git(['init', '--bare', '--initial-branch=main', remote]); git(['init', '-b', 'main', cwd]);
     git(['config', 'user.name', 'Release Test'], cwd);
     git(['config', 'user.email', 'release@example.invalid'], cwd);
     git(['commit', '--allow-empty', '-m', 'chore: baseline'], cwd);
