@@ -1,0 +1,7 @@
+<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Winter Arc · pruebas aisladas</title><p style="text-align:center;color:#aacbff">PRUEBAS AISLADAS · Sin sesión ni sincronización remota</p><div id="root"></div><script type="module">
+import React from 'react';import {createRoot} from 'react-dom/client';import {App} from '/src/App.tsx';import {db,selectPlayerStorage,addEntry,mergeSnapshot} from '/src/storage.ts';
+selectPlayerStorage('test-ui-mvp-v2');
+if(!await db.entries.count())await addEntry({day:'2026-10-06',mission:'pushups',quantity:10,unit:'repeticiones',note:'Prueba aislada',occurredAt:'2026-10-06T12:00'});
+await mergeSnapshot(db,{schemaVersion:2,revision:0,entries:[],decisions:[],entryCorrectionsEnabled:true,airofitEnabled:true,sleepReference:'wake-day',balances:{xp:0,mc:0},level:1});
+createRoot(document.getElementById('root')).render(React.createElement(React.Suspense,{fallback:'Abriendo…'},React.createElement(App)));
+</script></html>
