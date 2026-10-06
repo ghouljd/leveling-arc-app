@@ -33,6 +33,7 @@ GitHub Actions verifica cada PR. En main ejecuta pruebas, calcula release, const
 - `CLOUDFLARE_API_TOKEN`
 - `CLOUDFLARE_ACCOUNT_ID`
 - `CLOUDFLARE_WORKER_NAME`
+- `APP_RULES_CONTENT`: contenido de reglas de la aplicación; se incorpora únicamente al build desplegado. En desarrollo local se puede leer desde la documentación operativa excluida de Git.
 
 Permitir al workflow escribir tags; proteger main contra force-push y borrado. El token de Cloudflare necesita Workers Scripts: Edit limitado a la cuenta correspondiente. Desactivar cualquier otro publicador automático para evitar despliegues concurrentes.
 

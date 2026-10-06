@@ -1,5 +1,5 @@
 import React from 'react';
-import rules from '../../Docs/REGLAS_WINTER_ARC.md?raw';
+import rules from 'virtual:app-rules';
 import {localDay} from './storage';
 function inline(text:string){return text.split(/(\*\*.*?\*\*|`.*?`)/g).map((part,i)=>part.startsWith('**')?<strong key={i}>{part.slice(2,-2)}</strong>:part.startsWith('`')?<code key={i}>{part.slice(1,-1)}</code>:part);}
 export function Rules(){

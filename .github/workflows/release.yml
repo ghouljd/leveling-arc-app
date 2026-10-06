@@ -33,6 +33,7 @@ jobs:
         env:
           VITE_SUPABASE_URL: https://backend.example.invalid
           VITE_SUPABASE_PUBLISHABLE_KEY: test-only-placeholder
+          APP_RULES_CONTENT: "# Reglas\n\nContenido ficticio para verificar el build."
   release:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     needs: verify
@@ -49,6 +50,7 @@ jobs:
       CLOUDFLARE_WORKER_NAME: ${{ secrets.CLOUDFLARE_WORKER_NAME }}
       VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
       VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+      APP_RULES_CONTENT: ${{ secrets.APP_RULES_CONTENT }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -67,5 +69,6 @@ jobs:
           test -n "$CLOUDFLARE_WORKER_NAME"
           test -n "$VITE_SUPABASE_URL"
           test -n "$VITE_SUPABASE_PUBLISHABLE_KEY"
+          test -n "$APP_RULES_CONTENT"
       - name: Test, release and deploy (supports retries)
         run: npm run pipeline
